@@ -13,13 +13,14 @@ using namespace std;
  * 1_px_B_value, 2_px_B_value... 1_px_G_value, 2_px_G_value... 1_px_R_value, 2_px_R_value...  svaki kanal do širine slike "width"
  */
 Bytef * Filters::none_filter(const Bytef *B_channel_line, const Bytef *G_channel_line, const Bytef *R_channel_line,int width) {
-    Bytef *none_line = (Bytef *) malloc(width * 3 * sizeof(Bytef));
+    Bytef *none_line = (Bytef *) malloc((width * 3 + 1) * sizeof(Bytef));
+    none_line[0] = 0; // filter NONE
 
     // konkateniraj u izlaznu liniju BBB...GGG...RRR... svaki kanal koliko je široka slika
     for (int i = 0; i < width; i++) {
-        none_line[i] = B_channel_line[i];
-        none_line[i + width] = G_channel_line[i];
-        none_line[i + 2*width] = R_channel_line[i];
+        none_line[i +1] = B_channel_line[i];
+        none_line[i + width + 1] = G_channel_line[i];
+        none_line[i + 2*width +1] = R_channel_line[i];
     }
     return none_line;
 }
@@ -35,7 +36,8 @@ Bytef * Filters::none_filter(const Bytef *B_channel_line, const Bytef *G_channel
  * Te na kraju slijedi konkatenacija sva 3 filtrirana channela u jednu izlazni liniju
  */
 Bytef * Filters::sub_filter(Bytef *B_channel_line, Bytef *G_channel_line, Bytef *R_channel_line, int width, int height) {
-    Bytef* sub_line = (Bytef*) malloc(width*3*sizeof(Bytef));
+    Bytef* sub_line = (Bytef*) malloc((width*3+1)*sizeof(Bytef));
+    sub_line[0] = 1; // SUB filter
 
     // prvo dodaj lijevo 0 i pripremi liniju za izvođenje filtriranja
     // u for petlji za svaki kanal izracunaj sub i napravi "liniju" kao "B_channel+G_channel+R_channel"
@@ -63,10 +65,11 @@ Bytef * Filters::sub_filter(Bytef *B_channel_line, Bytef *G_channel_line, Bytef 
 
     // konkateniraj u izlaznu liniju B-G-R na koju će se primjenjivati heuristika
     for (int i = 0; i < width; i++) {
-        sub_line[width*i] = B_channel_line_result[i]; // samo od [i] ?
-        sub_line[width*i + 1] = G_channel_line_result[i];
-        sub_line[width*i + 2] = R_channel_line_result[i];
+        sub_line[i+1] = B_channel_line_result[i]; // samo od [i] ?
+        sub_line[i + 1*width + 1] = G_channel_line_result[i];
+        sub_line[i + 2*width + 1] = R_channel_line_result[i];// prijej e bilo width*i +2
     }
+
 
     free(B_channel_line_to_filter);
     free(G_channel_line_to_filter);
@@ -86,6 +89,8 @@ Bytef * Filters::sub_filter(Bytef *B_channel_line, Bytef *G_channel_line, Bytef 
  * Na kraju se rezultat sprema u jednu liniju tipa BBB...GGG...RRR
  */
 Bytef * Filters::up_filter(Bytef *B_channel, Bytef *G_channel, Bytef *R_channel, int width, int height, int current_row) {
+    Bytef* result_line = (Bytef *) malloc((width*3+1) * sizeof(Bytef));
+    result_line[0] = 2; // UP FILTER
 
     Bytef *current_line = (Bytef *) malloc(width*3*sizeof(Bytef));
     for (int i = 0; i < width; i++) {
@@ -98,7 +103,10 @@ Bytef * Filters::up_filter(Bytef *B_channel, Bytef *G_channel, Bytef *R_channel,
     // ako je prvi redak onda dodajemo gornju null redak za filtriranje
     // tj. samo vratimo konkateniranu B-G-R liniju
     if (current_row == 0) {
-        return current_line;
+        for (int i = 0; i < width*3; i++) {
+            result_line[i+1] = current_line[i];
+        }
+        return result_line;
 
     }else {
         // inače dohvati redak prije za filtriranje
@@ -110,13 +118,14 @@ Bytef * Filters::up_filter(Bytef *B_channel, Bytef *G_channel, Bytef *R_channel,
 
         // trenutna linija konkatenirana B-G-R prije filtriranja je up_line
         // filtriranje nad cijelom B-G-R linijom
+
         for (int i = 0; i < width*3; i++) {
-            current_line[i] = (current_line[i] - up_row[i]) % 256;
+            result_line[i+1] = (current_line[i] - up_row[i]) % 256;
         }
     }
 
     free(up_row);
-    return current_line;
+    return result_line;
 }
 
 /*
@@ -136,17 +145,19 @@ Bytef * Filters::avg_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_chan
         current_line[i + 2*width] = R_channel[i + current_row*width];
     }
 
-    Bytef *return_line = (Bytef *) malloc(width*3*sizeof(Bytef));
+    Bytef *return_line = (Bytef *) malloc((width*3+1)*sizeof(Bytef));
+    return_line[0] = 3; // AVG filter
+
     if (current_row == 0) {
         // up row = nul redak
         Bytef up_element = 0x00;
         for (int i = 0; i < width*3; i++) {
             // ako smo na početku channela onda je lijevi element 0 i gornji 0
             if (i % width == 0) {
-                return_line[i] = current_line[i];
+                return_line[i+1] = current_line[i];
                 continue;
             }
-            return_line[i] = (current_line[i] - (current_line[i-1])/2) % 256;
+            return_line[i+1] = (current_line[i] - (current_line[i-1])/2) % 256;
         }
     }else {
         Bytef *up_row = (Bytef *) malloc(width*3*sizeof(Bytef));
@@ -162,10 +173,10 @@ Bytef * Filters::avg_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_chan
             up_element = up_row[i];
             // ako smo na početku channela onda je lijevi element 0
             if (i % width == 0) {
-                return_line[i] = (current_line[i] - (up_element/2)) % 256;
+                return_line[i+1] = (current_line[i] - (up_element/2)) % 256;
                 continue;
             }
-            return_line[i] = (current_line[i] - (current_line[i-1]+up_element)/2) % 256;
+            return_line[i+1] = (current_line[i] - (current_line[i-1]+up_element)/2) % 256;
         }
         free(up_row);
     }
@@ -199,7 +210,8 @@ Bytef * Filters::paeth_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_ch
         current_line[i + 2*width] = R_channel[i + current_row*width];
     }
 
-    Bytef *return_line = (Bytef *) malloc(width*3*sizeof(Bytef));
+    Bytef *return_line = (Bytef *) malloc((width*3+1)*sizeof(Bytef));
+    return_line[0] = 4; // PAETH filter
     if (current_row == 0) {
         // up row = nul redak i up-left element = 0
         Bytef up_element = 0x00;
@@ -209,7 +221,7 @@ Bytef * Filters::paeth_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_ch
             // ako smo na početku channela onda je lijevi element 0 i gornji 0 i gornji lijevi isto 0
             // pa je rezultat operacije x-0= x
             if (i % width == 0) {
-                return_line[i] = current_line[i];
+                return_line[i+1] = current_line[i];
                 continue;
             }
             // inače
@@ -218,7 +230,7 @@ Bytef * Filters::paeth_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_ch
             vu = v - up_element; // VU = V - U
             vul = v - up_left_element; // VUL = V - UL
             Bytef vmin = minimum(vl, vu, vul);
-            return_line[i] = (current_line[i] - vmin) % 256;
+            return_line[i+1] = (current_line[i] - vmin) % 256;
         }
     }else {
         Bytef *up_row = (Bytef *) malloc(width*3*sizeof(Bytef));
@@ -242,7 +254,7 @@ Bytef * Filters::paeth_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_ch
                 vu = v - up_element;
                 vul = v - up_left_element;
                 Bytef vmin = minimum(vl, vu, vul);
-                return_line[i] = (current_line[i] - vmin) % 256;
+                return_line[i+1] = (current_line[i] - vmin) % 256;
                 continue;
             }
             up_left_element = up_row[i-1];
@@ -251,7 +263,7 @@ Bytef * Filters::paeth_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_ch
             vu = v - up_element;
             vul = v - up_left_element;
             Bytef vmin = minimum(vl, vu, vul);
-            return_line[i] = (current_line[i] - vmin) % 256;
+            return_line[i+1] = (current_line[i] - vmin) % 256;
         }
         free(up_row);
     }
@@ -262,22 +274,10 @@ Bytef * Filters::paeth_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_ch
  * Metoda služi kao predprocesiranje redaka prije heuristike
  * Mapira vrijednosti bajtova koji su 128+ na negativne vrijednosti -> vrijednostBajta - 256
  */
-void Filters::remap_lines(Bytef * none_line, Bytef * sub_line, Bytef * up_line, Bytef * avg_line, Bytef * paeth_line, int width) {
-    for (int i = 0; i < width; i++) {
-        if (none_line[i] >= 128) {
-            none_line[i] = none_line[i] - 256;
-        }
-        if (sub_line[i] >= 128) {
-            sub_line[i] = sub_line[i] - 256;
-        }
-        if (up_line[i] >= 128) {
-            up_line[i] = up_line[i] - 256;
-        }
-        if (avg_line[i] >= 128) {
-            avg_line[i] = avg_line[i] - 256;
-        }
-        if (paeth_line[i] >= 128) {
-            paeth_line[i] = paeth_line[i] - 256;
+void Filters::remap_line(Bytef * line, char* copy_line, int width) {
+    for (int i = 1; i < width*3+1; i++) {
+        if (line[i] >= 0x80) {
+            copy_line[i-1] = static_cast<char>(line[i]) - 256;
         }
     }
 }

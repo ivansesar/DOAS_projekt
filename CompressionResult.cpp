@@ -6,7 +6,7 @@ class CompressionResult {
     double compression_ratio;
 
 public:
-    CompressionResult(double duration, double compression_ratio) : duration(duration), compression_ratio(compression_ratio) {};
+    CompressionResult(long long duration, double compression_ratio) : duration(duration), compression_ratio(compression_ratio) {};
     double get_duration() const {
         return duration;
     }

@@ -10,6 +10,6 @@ public:
     static Bytef *paeth_filter(Bytef * B_channel, Bytef * G_channel, Bytef * R_channel, int width, int height, int current_row);
     static Bytef minimum(Bytef vl, Bytef vu, Bytef vul);
 
-    static void remap_lines(Bytef * none_line, Bytef * sub_line, Bytef * up_line, Bytef * avg_line, Bytef * paeth_line, int width);
+    static void remap_line(Bytef * line, char* copy_line , int width);
 
 };

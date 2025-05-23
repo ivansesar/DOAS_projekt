@@ -12,13 +12,13 @@ enum FILTER_TYPE {
  */
 typedef struct {
     FILTER_TYPE type;
-    const Bytef *line;
+    Bytef *line;
 } BestLine;
 
 class Heuristics {
 public:
     static FILTER_TYPE getFilterType(int min_key);
 
-    static BestLine apply_heuristic(const Bytef * none_line, const Bytef * sub_line, const Bytef * up_line, const Bytef * avg_line, const Bytef * paeth_line, int width);
+    static BestLine apply_heuristic( Bytef * none_line,  Bytef * sub_line,  Bytef * up_line,  Bytef * avg_line,  Bytef * paeth_line, int width);
 
 };
