@@ -1,16 +1,24 @@
+#include <string>
+#include "CompressionResult.h"
 /**
  * Klasa koja enkapsulira trajanje kompresije i omjer kompresije
  */
-class CompressionResult {
-    double duration;
-    double compression_ratio;
 
-public:
-    CompressionResult(long long duration, double compression_ratio) : duration(duration), compression_ratio(compression_ratio) {};
-    double get_duration() const {
-        return duration;
-    }
-    double get_compression_ratio() const {
-        return compression_ratio;
-    }
-};
+CompressionResult::CompressionResult(unsigned long compressed_size, long long duration, double compression_ratio, std::string parameters, std::string filename)
+    : compressed_size(compressed_size) ,duration(duration), compression_ratio(compression_ratio), parameters(parameters), filename(filename) {};
+
+long long CompressionResult::get_duration() const {
+    return duration;
+}
+double CompressionResult::get_compression_ratio() const  {
+    return compression_ratio;
+}
+unsigned long CompressionResult::get_compressed_size() const {
+    return compressed_size;
+}
+std::string CompressionResult::get_parameters() {
+    return parameters;
+}
+std::string CompressionResult::get_filename() {
+    return filename;
+}
