@@ -28,6 +28,10 @@ add_executable(DirectoryChooser main.cpp Filters.cpp
         BMPReader.h
         ImageWidget.cpp
         ImageWidget.h
+        ResultImageWidget.cpp
+        ResultImageWidget.h
+        Util.cpp
+        Util.h
 )
 
 target_include_directories(DirectoryChooser PRIVATE ${GTKMM_INCLUDE_DIRS})
