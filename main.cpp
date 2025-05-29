@@ -84,6 +84,7 @@ std::vector<CompressionResult*> make_compressions(int bytes_per_pixel, int width
                     unsigned long compressed_size;
                     auto start = chrono::high_resolution_clock::now();
                     unsigned long full_size = height*(width*3+1);
+                    unsigned long image_size = height*width*3;
                     z_stream strm{};
                     Bytef* compressed = (Bytef*) malloc(height*(width*3+1) * sizeof(Bytef));
 
@@ -96,7 +97,7 @@ std::vector<CompressionResult*> make_compressions(int bytes_per_pixel, int width
                     deflate(&strm, Z_FINISH);
 
                     compressed_size = strm.total_out;
-                    compressed_ratio = static_cast<double>(full_size) / strm.total_out;
+                    compressed_ratio = static_cast<double>(image_size) / strm.total_out;
                     printf("At %d Compressed length = %lu\n",index, strm.total_out);
 
                     if (index == 0) {
@@ -355,6 +356,7 @@ private:
             unsigned long full_size = height*(width*3+1);
             z_stream strm{};
             Bytef* compressed = (Bytef*) malloc(height*(width*3+1) * sizeof(Bytef));
+            unsigned long image_size = height*width*3;
 
             strm.next_in = lines_to_deflate;
             strm.avail_in = height*(width*3+1);
@@ -365,7 +367,7 @@ private:
             deflate(&strm, Z_FINISH);
 
             compressed_size = strm.total_out;
-            compressed_ratio =  static_cast<double>(full_size) / strm.total_out;
+            compressed_ratio =  static_cast<double>(image_size) / strm.total_out;
 
             deflateEnd(&strm);
 
