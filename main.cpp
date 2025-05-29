@@ -96,7 +96,7 @@ std::vector<CompressionResult*> make_compressions(int bytes_per_pixel, int width
                     deflate(&strm, Z_FINISH);
 
                     compressed_size = strm.total_out;
-                    compressed_ratio = 1.0 - (static_cast<double>(strm.total_out) / full_size);
+                    compressed_ratio = static_cast<double>(full_size) / strm.total_out;
                     printf("At %d Compressed length = %lu\n",index, strm.total_out);
 
                     if (index == 0) {
@@ -365,7 +365,7 @@ private:
             deflate(&strm, Z_FINISH);
 
             compressed_size = strm.total_out;
-            compressed_ratio = 1.0 - (static_cast<double>(strm.total_out) / full_size);
+            compressed_ratio =  static_cast<double>(full_size) / strm.total_out;
 
             deflateEnd(&strm);
 
@@ -401,7 +401,7 @@ private:
             }
         }else if (result_type == COMPRESSION_RATIO) {
             double max_ratio = 0.0;
-            double min_ratio = 1;
+            double min_ratio = numeric_limits<double>::max();
             for (CompressionResult* cr : results_for_parameters) {
                 if (cr->get_compression_ratio() > max_ratio) {
                     max_ratio = cr->get_compression_ratio();

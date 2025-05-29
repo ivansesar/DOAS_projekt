@@ -36,7 +36,7 @@ public:
                 transition: transform ease-in 0.2s;
             }
             .picture:hover {
-                transform: scale(5);
+                transform: scale(3);
                 z-index: 5;
             }
         )";
