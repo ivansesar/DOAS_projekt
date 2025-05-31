@@ -17,14 +17,14 @@ const char IHDR[] = "IHDR";
 const char IDAT[] = "IDAT";
 const char IEND[] = "IEND";
 
-void write_uint32_be(std::ofstream& out, uint32_t value) {
+void write_uint32_be(std::ofstream& out_stream, uint32_t value) {
     uint8_t bytes[4] = {
         static_cast<uint8_t>((value >> 24) & 0xFF),
         static_cast<uint8_t>((value >> 16) & 0xFF),
         static_cast<uint8_t>((value >> 8) & 0xFF),
         static_cast<uint8_t>(value & 0xFF)
     };
-    out.write(reinterpret_cast<char*>(bytes), 4);
+    out_stream.write(reinterpret_cast<char*>(bytes), 4);
 }
 
 // Compute CRC for a chunk
@@ -34,10 +34,10 @@ uint32_t compute_crc(const char* type, const uint8_t* data, unsigned long length
 }
 
 void write_chunk(std::ofstream& file, const char* chunk_type, const uint8_t* data, unsigned long length) {
-    write_uint32_be(file, length);         // Chunk length
-    file.write(chunk_type, 4);                   // Chunk type
+    write_uint32_be(file, length);
+    file.write(chunk_type, 4);
     if (length > 0 && data != nullptr)
-        file.write(reinterpret_cast<const char*>(data), length); // Chunk data
+        file.write(reinterpret_cast<const char*>(data), length);
     uint32_t crc = compute_crc(chunk_type, data, length);
     write_uint32_be(file, crc);
 }
