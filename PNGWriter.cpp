@@ -47,7 +47,7 @@ void PNGWriter::write_png(int width, int height, Bytef* data, long data_length, 
     std::filesystem::path p(filename.c_str());
     filename = p.filename().string();
     filename = filename.substr(0, filename.length() - 4);
-    std::cout << "Filename is " << filename << std::endl;
+    //std::cout << "Filename is " << filename << std::endl;
     std::string output_directory = file_type == BMP_TEXT ? std::string("./text/") + filename + std::string(".png") : std::string("./nature/") + filename + std::string(".png");
 
     std::ofstream png_file(output_directory, std::ios::binary);

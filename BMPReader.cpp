@@ -71,14 +71,14 @@ void flip_channel(Byte * channel, int width, int height) {
         int height = std::abs(infoHeader.biHeight);
         int bits_per_pixel = infoHeader.biBitCount;
         int bytes_per_pixel = bits_per_pixel / 8;
-        cout << "Bytes per pixel: " << bytes_per_pixel << endl;
+        //cout << "Bytes per pixel: " << bytes_per_pixel << endl;
 
         int row_stride = ((width * bytes_per_pixel + 3) / 4) * 4;
         int row_data_size = width * bytes_per_pixel;
-        cout << "Row Stride " << row_stride << endl;
+        //cout << "Row Stride " << row_stride << endl;
         int total_bytes = row_stride*height;
-        cout << "Total bytes of image = " << total_bytes << endl;
-        cout << "bf off bits " << fileHeader.bfOffBits << endl;
+        //cout << "Total bytes of image = " << total_bytes << endl;
+        //cout << "bf off bits " << fileHeader.bfOffBits << endl;
 
         uint8_t* pixel_data_no_padding = (uint8_t*) malloc(width * height * bytes_per_pixel * sizeof(uint8_t));
         uint8_t* row_buffer = (uint8_t*) malloc(row_stride*sizeof(uint8_t));
@@ -97,12 +97,12 @@ void flip_channel(Byte * channel, int width, int height) {
             index++;
             //uint8_t pixel_value = pixel_data_no_padding[i];
         }
-        cout << "Number of px " << index << endl;
+        //cout << "Number of px " << index << endl;
 
 
         //******************* PARSED BMP IS IN pixel_data **********************//
         // kanali nad kojima će se obavljati operacije filtriranja
-        cout << "width x height " << width << " " << height << endl;
+        //cout << "width x height " << width << " " << height << endl;
 
         Bytef *B_channel = (Bytef *) malloc(width*height * sizeof(Bytef));
         Bytef *G_channel = (Bytef *) malloc(width*height * sizeof(Bytef));

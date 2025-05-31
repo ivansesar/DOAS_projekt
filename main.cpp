@@ -48,7 +48,7 @@ void make_deflate_lines(Bytef* lines_to_deflate, BestLine best_line, int width, 
  * Metoda koja obavlja kompresiju nad 1 slikom
  * Metoda definira parametre kompresije i izvodi svaku kombinaciju i ispisuje rezultat
  */
-std::vector<CompressionResult*> make_compressions(int bytes_per_pixel, int width, int height, Bytef* lines_to_deflate, BMP_TYPE file_type, string filename) {
+std::vector<CompressionResult*> make_compressions(int bytes_per_pixel, int width, int height, Bytef* lines_to_deflate, BMP_TYPE file_type, string filename, uintmax_t total_file_size) {
     std::map<string, int> compression_level = {
         {"Z_BEST_COMPRESSION", Z_BEST_COMPRESSION},
         {"Z_BEST_SPEED", Z_BEST_SPEED},
@@ -82,7 +82,6 @@ std::vector<CompressionResult*> make_compressions(int bytes_per_pixel, int width
                     string parameters = "Z_DEFLATED " + level.first + " " + window_size.first + " " + mem_level.first + " " + strategy.first;
                     double compressed_ratio;
                     unsigned long compressed_size;
-                    auto start = chrono::high_resolution_clock::now();
                     unsigned long full_size = height*(width*3+1);
                     unsigned long image_size = height*width*3;
                     z_stream strm{};
@@ -93,26 +92,33 @@ std::vector<CompressionResult*> make_compressions(int bytes_per_pixel, int width
                     strm.next_out = compressed;
                     strm.avail_out = height*(width*3+1);
 
+                    auto start = chrono::high_resolution_clock::now();
+
                     deflateInit2(&strm, level.second, Z_DEFLATED, window_size.second, mem_level.second, strategy.second);
                     deflate(&strm, Z_FINISH);
 
-                    compressed_size = strm.total_out;
-                    compressed_ratio = static_cast<double>(image_size) / strm.total_out;
-                    printf("At %d Compressed length = %lu\n",index, strm.total_out);
-
-                    if (index == 0) {
-                        // samo jednu kompresiju prevedi u png sliku za provjeru
-                        cout << "Printing png" << endl;
-                        PNGWriter::write_png(width, height, compressed, compressed_size, file_type, filename);
-                    }
+                    //******
+                    //******
 
                     deflateEnd(&strm);
 
                     auto end = chrono::high_resolution_clock::now();
+
+                    //**********
+                    compressed_size = strm.total_out;
+                    compressed_ratio = static_cast<double>(total_file_size) / strm.total_out; // image_size
+                    //printf("At %d Compressed length = %lu\n",index, strm.total_out);
+
+                    if (index == 0) {
+                        // samo jednu kompresiju prevedi u png sliku za provjeru
+                        //cout << "Printing png" << endl;
+                        PNGWriter::write_png(width, height, compressed, compressed_size, file_type, filename);
+                    }
+                    //**************
                     std::chrono::duration<double> duration = end - start;
                     long long compression_time = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
                     double compression_speed = full_size / compression_time;
-                    cout << "Compression speed = " << compression_speed  << " kB/s"<< endl;
+                    //cout << "Compression speed = " << compression_speed  << " kB/s"<< endl;
                     CompressionResult* result = new CompressionResult(compressed_size, compression_time,compression_speed, compressed_ratio,parameters,filename);
                     compression_results.push_back(result);
                     // // izvođenje inflatea
@@ -142,13 +148,13 @@ std::vector<CompressionResult*> make_compressions(int bytes_per_pixel, int width
 class DirectoryChooser : public Gtk::Window {
 public:
 
-
     DirectoryChooser() {
         set_title("Directory Chooser");
         set_default_size(1800,1200);
 
 
         init_GUI();
+        apply_css();
         create_csv();
     };
 private:
@@ -207,6 +213,25 @@ private:
     ImageWidget* worst_nature_img_compression_ratio;
 
     std::ofstream csv_results;
+
+    void apply_css() {
+        result_images_grid.get_style_context()->add_class("container");
+        auto css = R"(
+            .container {
+                border: 2px solid lightgray;
+                border-radius: 1rem;
+                padding: 1rem;
+            }
+        )";
+        auto provider = Gtk::CssProvider::create();
+        provider->load_from_data(css);
+
+        Gtk::StyleContext::add_provider_for_display(
+            Gdk::Display::get_default(),
+            provider,
+            GTK_STYLE_PROVIDER_PRIORITY_APPLICATION
+        );
+    }
 
     void create_csv() {
         string filename = "./results/results_of_compressions.csv";
@@ -277,8 +302,7 @@ private:
         images_grid.attach(images1_box, 0, 0, 1, 1);
         images_grid.attach(images2_box, 1, 0,1,1);
         full_vertical_box.append(images_grid);
-        Gtk::Label separator("====================================================================================================================");
-        full_vertical_box.append(separator);
+
 
         scrolled_window.set_child(full_vertical_box);
     }
@@ -352,30 +376,35 @@ private:
             // Izvedi deflate
             double compressed_ratio;
             unsigned long compressed_size;
-            auto start = chrono::high_resolution_clock::now();
             unsigned long full_size = height*(width*3+1);
             z_stream strm{};
             Bytef* compressed = (Bytef*) malloc(height*(width*3+1) * sizeof(Bytef));
             unsigned long image_size = height*width*3;
+            uintmax_t total_file_size = std::filesystem::file_size(s);
 
             strm.next_in = lines_to_deflate;
             strm.avail_in = height*(width*3+1);
             strm.next_out = compressed;
             strm.avail_out = height*(width*3+1);
 
+            auto start = chrono::high_resolution_clock::now();
+
             deflateInit2(&strm, compression_level[params[1]], compression_method[params[0]], compression_window_size[params[2]], compression_mem_level[params[3]], compression_strategy[params[4]]);
             deflate(&strm, Z_FINISH);
-
-            compressed_size = strm.total_out;
-            compressed_ratio =  static_cast<double>(image_size) / strm.total_out;
-
+            //******
+            //******
             deflateEnd(&strm);
 
             auto end = chrono::high_resolution_clock::now();
+
+            //*****
+            compressed_size = strm.total_out;
+            compressed_ratio =  static_cast<double>(total_file_size) / strm.total_out; // image_size
+            //*******
             std::chrono::duration<double> duration = end - start;
             long long compression_time = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
             double compression_speed = full_size / compression_time;
-            cout << "Compression speed on avg parameters = " << compression_speed  << " kB/s"<< endl;
+            //cout << "Compression speed on avg parameters = " << compression_speed  << " kB/s"<< endl;
             CompressionResult* result = new CompressionResult(compressed_size, compression_time,compression_speed, compressed_ratio,parameters,s);
             results_for_parameters.push_back(result);
             free(R_channel);
@@ -419,6 +448,16 @@ private:
         return best_and_worst_image;
     }
 
+    std::vector<std::string> parse_parameters(const string & parameters) {
+        std::vector<std::string> result;
+        std::istringstream stream(parameters);
+        std::string param;
+        while (stream >> param) {
+            result.push_back(param);
+        }
+        return result;
+    }
+
     void make_compressions_for_best_avg_parameters() {
         //parametar je oblika: method - compression level - window size - memory level - compression strategy
 
@@ -426,15 +465,15 @@ private:
         std::vector<CompressionResult*> best_and_worst_text_images_ratio = run_compression_on_avg_parameter(best_parameter_for_best_compression_ratio_text,BMP_TEXT, COMPRESSION_RATIO);
         std::vector<CompressionResult*> best_and_worst_nature_images_speed = run_compression_on_avg_parameter(best_parameter_for_best_compression_speed_nature,BMP_NATURE, COMPRESSION_SPEED);
         std::vector<CompressionResult*> best_and_worst_nature_images_ratio = run_compression_on_avg_parameter(best_parameter_for_best_compression_ratio_nature, BMP_NATURE,COMPRESSION_RATIO);
-        cout << "<<<<<<<<<<<< IM HERE >>>>>>>>>>>>>>>>>>>" << endl;
-        cout << "best text image speed = " << best_and_worst_text_images_speed[0]->get_filename() << endl;
-        cout << "worst text image speed = " << best_and_worst_text_images_speed[1]->get_filename() << endl;
-        cout << "best text image ratio = " << best_and_worst_text_images_ratio[0]->get_filename() << endl;
-        cout << "worst text image ratio = " << best_and_worst_text_images_ratio[1]->get_filename() << endl;
-        cout << "best nature image speed = " << best_and_worst_nature_images_speed[0]->get_filename() << endl;
-        cout << "worst nature image speed = " << best_and_worst_nature_images_speed[1]->get_filename() << endl;
-        cout << "best nature image ratio = " << best_and_worst_nature_images_ratio[0]->get_filename() << endl;
-        cout << "worst nature image ratio = " << best_and_worst_nature_images_ratio[1]->get_filename() << endl;
+        //cout << "<<<<<<<<<<<< IM HERE >>>>>>>>>>>>>>>>>>>" << endl;
+        //cout << "best text image speed = " << best_and_worst_text_images_speed[0]->get_filename() << endl;
+        //cout << "worst text image speed = " << best_and_worst_text_images_speed[1]->get_filename() << endl;
+        //cout << "best text image ratio = " << best_and_worst_text_images_ratio[0]->get_filename() << endl;
+        //cout << "worst text image ratio = " << best_and_worst_text_images_ratio[1]->get_filename() << endl;
+        //cout << "best nature image speed = " << best_and_worst_nature_images_speed[0]->get_filename() << endl;
+        //cout << "worst nature image speed = " << best_and_worst_nature_images_speed[1]->get_filename() << endl;
+        //cout << "best nature image ratio = " << best_and_worst_nature_images_ratio[0]->get_filename() << endl;
+        //cout << "worst nature image ratio = " << best_and_worst_nature_images_ratio[1]->get_filename() << endl;
         // stringovi putanja najboljih i najlosijih slika
         std::string best_text_img_speed = best_and_worst_text_images_speed[0]->get_filename();
         unsigned long long best_text_img_speed_size = std::filesystem::file_size(best_text_img_speed); //best_and_worst_text_images_speed[0]->get_compressed_size();
@@ -467,7 +506,8 @@ private:
         result_text_images_box.set_orientation(Gtk::Orientation::VERTICAL);
         Gtk::Label label1("BEST COMPRESSION SPEED");
         result_text_images_box.append(label1);
-        Gtk::Label label2(best_parameter_for_best_compression_speed_text);
+        std::vector<std::string> text_best_cs = parse_parameters(best_parameter_for_best_compression_speed_text);
+        Gtk::Label label2("Method: " + text_best_cs[0] + " Compression level: " + text_best_cs[1] + " Window size: " + text_best_cs[2] + " Memory level: " + text_best_cs[3] + " Strategy: " + text_best_cs[4]);
         result_text_images_box.append(label2);
             text_box_speed.set_spacing(30);
             text_box_speed.set_hexpand(true);
@@ -481,7 +521,8 @@ private:
 
         Gtk::Label label3("BEST COMPRESSION RATIO");
         result_text_images_box.append(label3);
-        Gtk::Label label4(best_parameter_for_best_compression_ratio_text);
+        std::vector<std::string> text_best_cr = parse_parameters(best_parameter_for_best_compression_ratio_text);
+        Gtk::Label label4("Method: " + text_best_cr[0] + " Compression level: " + text_best_cr[1] + " Window size: " + text_best_cr[2] + " Memory level: " + text_best_cr[3] + " Strategy: " + text_best_cr[4]);
         result_text_images_box.append(label4);
             text_box_ratio.set_spacing(30);
             text_box_ratio.set_halign(Gtk::Align::CENTER);
@@ -499,7 +540,8 @@ private:
         result_nature_images_box.set_orientation(Gtk::Orientation::VERTICAL);
         Gtk::Label label5("BEST COMPRESSION SPEED");
         result_nature_images_box.append(label5);
-        Gtk::Label label6(best_parameter_for_best_compression_speed_nature);
+        std::vector<std::string> nature_best_cs = parse_parameters(best_parameter_for_best_compression_speed_nature);
+        Gtk::Label label6("Method: " + nature_best_cs[0] + " Compression level: " + nature_best_cs[1] + " Window size: " + nature_best_cs[2] + " Memory level: " + nature_best_cs[3] + " Strategy: " + nature_best_cs[4]);
         result_nature_images_box.append(label6);
             nature_box_speed.set_spacing(30);
             nature_box_speed.set_halign(Gtk::Align::CENTER);
@@ -513,7 +555,8 @@ private:
 
         Gtk::Label label7("BEST COMPRESSION RATIO");
         result_nature_images_box.append(label7);
-        Gtk::Label label8(best_parameter_for_best_compression_ratio_nature);
+        std::vector<std::string> nature_best_cr = parse_parameters(best_parameter_for_best_compression_ratio_nature);
+        Gtk::Label label8("Method: " + nature_best_cr[0] + " Compression level: " + nature_best_cr[1] + " Window size: " + nature_best_cr[2] + " Memory level: " + nature_best_cr[3] + " Strategy: " + nature_best_cr[4]);
         result_nature_images_box.append(label8);
             nature_box_ratio.set_spacing(30);
             nature_box_ratio.set_halign(Gtk::Align::CENTER);
@@ -526,7 +569,9 @@ private:
         result_nature_images_box.append(nature_box_ratio);
 
         result_images_grid.set_margin_top(30);
-        result_images_grid.set_margin_end(30);
+        result_images_grid.set_margin_bottom(30);
+        result_images_grid.set_hexpand(true);
+        result_images_grid.set_halign(Gtk::Align::FILL);
         result_images_grid.attach(result_text_images_box, 0, 0, 1,1);
         result_images_grid.attach(result_nature_images_box, 1, 0,1,1);
         full_vertical_box.append(result_images_grid);
@@ -535,92 +580,170 @@ private:
     void calculate_and_insert_stats(std::vector<CompressionResult *> & results, BMP_TYPE image_type) {
         unsigned long best_compressed_size = 0;
         unsigned long worst_compressed_size = ULONG_MAX;
+        unsigned long best_compressed_speed = 0;
+        unsigned long worst_compressed_speed = ULONG_MAX;
 
-        CompressionResult* best_compression_result = nullptr;
-        CompressionResult* worst_compression_result = nullptr;
+        CompressionResult* best_compression_ratio_result = nullptr;
+        CompressionResult* worst_compression_ratio_result = nullptr;
+        CompressionResult* best_compression_speed_result = nullptr;
+        CompressionResult* worst_compression_speed_result = nullptr;
 
         // ZA INDIVIUDALNE SLIKE
         for (auto result : results) {
             if (result->get_compressed_size() < worst_compressed_size) {
                 worst_compressed_size = result->get_compressed_size();
-                best_compression_result = result;
+                best_compression_ratio_result = result;
             }
             if (result->get_compressed_size() > best_compressed_size) {
                 best_compressed_size = result->get_compressed_size();
-                worst_compression_result = result;
+                worst_compression_ratio_result = result;
+            }
+            if (result->get_compression_speed() < worst_compressed_speed) {
+                worst_compressed_speed = result->get_compression_speed();
+                worst_compression_speed_result = result;
+            }
+            if (result->get_compression_speed() > best_compressed_speed) {
+                best_compressed_speed = result->get_compression_speed();
+                best_compression_speed_result = result;
             }
         }
 
-        if (best_compression_result == nullptr || worst_compression_result == nullptr) {
-            cout << "Best/worst compression result is nullptr" << endl;
+        if (best_compression_ratio_result == nullptr || worst_compression_ratio_result == nullptr ||
+            best_compression_speed_result == nullptr || worst_compression_speed_result == nullptr) {
+            //cout << "Best/worst compression ratio/speed result is nullptr" << endl;
         }
 
         // POSTAVLJANJE NAJBOLJE I NAJLOŠIJE KOMOPRESIJE ZA SVAKU SLIKU
         std::vector<ImageWidget *> vector = image_type == BMP_TEXT ? images1_vector : images2_vector;
-        std::string filename_best = best_compression_result->get_filename();
-        std::string filename_worst = worst_compression_result->get_filename();
+        std::string filename_best_compression_ratio = best_compression_ratio_result->get_filename();
+        std::string filename_worst_compression_ratio = worst_compression_ratio_result->get_filename();
+        std::string filename_best_compression_speed = best_compression_speed_result->get_filename();
+        std::string filename_worst_compression_speed = worst_compression_speed_result->get_filename();
 
         for (ImageWidget* image_widget : vector) {
-            if (image_widget->full_filename == filename_best) {
-                string best_comp_speed = "Compression speed: " + std::to_string(static_cast<int>(best_compression_result->get_compression_speed())) + " kB/s";
-                image_widget->best_compression_speed.set_text(best_comp_speed);
+            if (image_widget->full_filename == filename_best_compression_ratio) {
+                string best_comp_speed = "Compression speed: " + std::to_string(static_cast<int>(best_compression_ratio_result->get_compression_speed())) + " kB/s";
+                image_widget->cr_best_compression_speed.set_text(best_comp_speed);
 
-                string best_comp_size = "Size: " + std::to_string(best_compression_result->get_compressed_size()/1024) + " kB";
-                image_widget->best_compressed_size.set_text(best_comp_size);
+                string best_comp_size = "Compressed size: " + std::to_string(best_compression_ratio_result->get_compressed_size()/1024) + " kB";
+                image_widget->cr_best_compressed_size.set_text(best_comp_size);
 
-                string best_comp_ratio = "Compression ratio: " + std::to_string(best_compression_result->get_compression_ratio());
-                image_widget->best_compression_ratio.set_text(best_comp_ratio);
+                string best_comp_ratio = "Compression ratio: " + std::to_string(best_compression_ratio_result->get_compression_ratio());
+                image_widget->cr_best_compression_ratio.set_text(best_comp_ratio);
 
                 // insert compression parameters in gui
-                std::istringstream stream(best_compression_result->get_parameters());
+                std::istringstream stream(best_compression_ratio_result->get_parameters());
                 std::vector<std::string> parameters;
                 string parameter;
                 while (stream >> parameter) {
                     parameters.push_back(parameter);
                 }
-                cout << parameters.size() << endl;
+                //cout << parameters.size() << endl;
 
                 string best_comp_method = "Method: " + parameters[0];
-                image_widget->best_compression_method.set_text(best_comp_method);
+                image_widget->cr_best_compression_method.set_text(best_comp_method);
                 string best_comp_level = "Compression level: " + parameters[1];
-                image_widget->best_compression_level.set_text(best_comp_level);
+                image_widget->cr_best_compression_level.set_text(best_comp_level);
                 string best_comp_window_size = "Window size: " + parameters[2];
-                image_widget->best_compression_window_size.set_text(best_comp_window_size);
+                image_widget->cr_best_compression_window_size.set_text(best_comp_window_size);
                 string best_comp_memory_level = "Memory level: " + parameters[3];
-                image_widget->best_compression_memory_level.set_text(best_comp_memory_level);
+                image_widget->cr_best_compression_memory_level.set_text(best_comp_memory_level);
                 string best_comp_strategy = "Strategy: " + parameters[4];
-                image_widget->best_compression_strategy.set_text(best_comp_strategy);
+                image_widget->cr_best_compression_strategy.set_text(best_comp_strategy);
 
             }
-            if (image_widget->full_filename == filename_worst) {
-                string worst_comp_speed = "Comprssion speed: " + std::to_string(static_cast<int>(worst_compression_result->get_compression_speed())) + " kB/s";
-                image_widget->worst_compression_speed.set_text(worst_comp_speed);
+            if (image_widget->full_filename == filename_worst_compression_ratio) {
+                string worst_comp_speed = "Comprssion speed: " + std::to_string(static_cast<int>(worst_compression_ratio_result->get_compression_speed())) + " kB/s";
+                image_widget->cr_worst_compression_speed.set_text(worst_comp_speed);
 
-                string worst_comp_size = "Size: " + std::to_string(worst_compression_result->get_compressed_size()/1024) + " kB";
-                image_widget->worst_compressed_size.set_text(worst_comp_size);
+                string worst_comp_size = "Compressed size: " + std::to_string(worst_compression_ratio_result->get_compressed_size()/1024) + " kB";
+                image_widget->cr_worst_compressed_size.set_text(worst_comp_size);
 
-                string worst_comp_ratio = "Compression ratio: " + std::to_string(worst_compression_result->get_compression_ratio());
-                image_widget->worst_compression_ratio.set_text(worst_comp_ratio);
+                string worst_comp_ratio = "Compression ratio: " + std::to_string(worst_compression_ratio_result->get_compression_ratio());
+                image_widget->cr_worst_compression_ratio.set_text(worst_comp_ratio);
 
                 // insert compression parameters in gui
-                std::istringstream stream(worst_compression_result->get_parameters());
+                std::istringstream stream(worst_compression_ratio_result->get_parameters());
                 std::vector<std::string> parameters;
                 string parameter;
                 while (stream >> parameter) {
                     parameters.push_back(parameter);
                 }
-                cout << parameters.size() << endl;
+                //cout << parameters.size() << endl;
 
                 string worst_comp_method = "Method: " + parameters[0];
-                image_widget->worst_compression_method.set_text(worst_comp_method);
+                image_widget->cr_worst_compression_method.set_text(worst_comp_method);
                 string worst_comp_level = "Compression level: " + parameters[1];
-                image_widget->worst_compression_level.set_text(worst_comp_level);
+                image_widget->cr_worst_compression_level.set_text(worst_comp_level);
                 string worst_comp_window_size = "Window size: " + parameters[2];
-                image_widget->worst_compression_window_size.set_text(worst_comp_window_size);
+                image_widget->cr_worst_compression_window_size.set_text(worst_comp_window_size);
                 string worst_comp_memory_level = "Memory level: " + parameters[3];
-                image_widget->worst_compression_memory_level.set_text(worst_comp_memory_level);
+                image_widget->cr_worst_compression_memory_level.set_text(worst_comp_memory_level);
                 string worst_comp_strategy = "Strategy: " + parameters[4];
-                image_widget->worst_compression_strategy.set_text(worst_comp_strategy);
+                image_widget->cr_worst_compression_strategy.set_text(worst_comp_strategy);
+
+            }
+
+            if (image_widget->full_filename == filename_best_compression_speed) {
+                string best_comp_speed = "Compression speed: " + std::to_string(static_cast<int>(best_compression_speed_result->get_compression_speed())) + " kB/s";
+                image_widget->cs_best_compression_speed.set_text(best_comp_speed);
+
+                string best_comp_size = "Compressed size: " + std::to_string(best_compression_speed_result->get_compressed_size()/1024) + " kB";
+                image_widget->cs_best_compressed_size.set_text(best_comp_size);
+
+                string best_comp_ratio = "Compression ratio: " + std::to_string(best_compression_speed_result->get_compression_ratio());
+                image_widget->cs_best_compression_ratio.set_text(best_comp_ratio);
+
+                // insert compression parameters in gui
+                std::istringstream stream(best_compression_speed_result->get_parameters());
+                std::vector<std::string> parameters;
+                string parameter;
+                while (stream >> parameter) {
+                    parameters.push_back(parameter);
+                }
+                //cout << parameters.size() << endl;
+
+                string best_comp_method = "Method: " + parameters[0];
+                image_widget->cs_best_compression_method.set_text(best_comp_method);
+                string best_comp_level = "Compression level: " + parameters[1];
+                image_widget->cs_best_compression_level.set_text(best_comp_level);
+                string best_comp_window_size = "Window size: " + parameters[2];
+                image_widget->cs_best_compression_window_size.set_text(best_comp_window_size);
+                string best_comp_memory_level = "Memory level: " + parameters[3];
+                image_widget->cs_best_compression_memory_level.set_text(best_comp_memory_level);
+                string best_comp_strategy = "Strategy: " + parameters[4];
+                image_widget->cs_best_compression_strategy.set_text(best_comp_strategy);
+
+            }
+            if (image_widget->full_filename == filename_worst_compression_speed) {
+                string worst_comp_speed = "Comprssion speed: " + std::to_string(static_cast<int>(worst_compression_speed_result->get_compression_speed())) + " kB/s";
+                image_widget->cs_worst_compression_speed.set_text(worst_comp_speed);
+
+                string worst_comp_size = "Compressed size: " + std::to_string(worst_compression_speed_result->get_compressed_size()/1024) + " kB";
+                image_widget->cs_worst_compressed_size.set_text(worst_comp_size);
+
+                string worst_comp_ratio = "Compression ratio: " + std::to_string(worst_compression_speed_result->get_compression_ratio());
+                image_widget->cs_worst_compression_ratio.set_text(worst_comp_ratio);
+
+                // insert compression parameters in gui
+                std::istringstream stream(worst_compression_speed_result->get_parameters());
+                std::vector<std::string> parameters;
+                string parameter;
+                while (stream >> parameter) {
+                    parameters.push_back(parameter);
+                }
+                //cout << parameters.size() << endl;
+
+                string worst_comp_method = "Method: " + parameters[0];
+                image_widget->cs_worst_compression_method.set_text(worst_comp_method);
+                string worst_comp_level = "Compression level: " + parameters[1];
+                image_widget->cs_worst_compression_level.set_text(worst_comp_level);
+                string worst_comp_window_size = "Window size: " + parameters[2];
+                image_widget->cs_worst_compression_window_size.set_text(worst_comp_window_size);
+                string worst_comp_memory_level = "Memory level: " + parameters[3];
+                image_widget->cs_worst_compression_memory_level.set_text(worst_comp_memory_level);
+                string worst_comp_strategy = "Strategy: " + parameters[4];
+                image_widget->cs_worst_compression_strategy.set_text(worst_comp_strategy);
 
             }
         }
@@ -754,10 +877,10 @@ private:
         }
         best_parameter_for_best_compression_speed_nature = best_parameter_nature_compression_speed;
 
-        cout << "Najbolji parametar u prosjeku za tekst za compression ratio je " << best_parameter_for_best_compression_ratio_text << endl;
-        cout << "Najbolji parametar u prosjeku za tekst za compression speed je " << best_parameter_for_best_compression_speed_text << endl;
-        cout << "Najbolji parametar u prosjeku za nature za compression ratio je " << best_parameter_for_best_compression_ratio_nature << endl;
-        cout << "Najbolji parametar u prosjeku za nature za compression speed je " << best_parameter_for_best_compression_speed_nature << endl;
+        //cout << "Najbolji parametar u prosjeku za tekst za compression ratio je " << best_parameter_for_best_compression_ratio_text << endl;
+        //cout << "Najbolji parametar u prosjeku za tekst za compression speed je " << best_parameter_for_best_compression_speed_text << endl;
+        //cout << "Najbolji parametar u prosjeku za nature za compression ratio je " << best_parameter_for_best_compression_ratio_nature << endl;
+        //cout << "Najbolji parametar u prosjeku za nature za compression speed je " << best_parameter_for_best_compression_speed_nature << endl;
 
     }
 
@@ -776,23 +899,23 @@ private:
             Bytef* lines_to_deflate = (Bytef *) malloc(height * (width * bytes_per_pixel + 1) * sizeof(Bytef));
             for (int i = 0; i < height; i++) {
                 Bytef *none_line = Filters::none_filter(&B_channel[i*width], &G_channel[i*width], &R_channel[i*width],width);
-                cout << "im here none " << i << endl;
+                //cout << "im here none " << i << endl;
                 Bytef *sub_line = Filters::sub_filter(&B_channel[i*width], &G_channel[i*width], &R_channel[i*width],width, height);
-                cout << "im here sub " << i << endl;
+                //cout << "im here sub " << i << endl;
                 Bytef *up_line = Filters::up_filter(B_channel, G_channel, R_channel,width, height, i);
-                cout << "im here up " << i << endl;
+                //cout << "im here up " << i << endl;
                 Bytef *avg_line = Filters::avg_filter(B_channel, G_channel, R_channel,width, height, i);
-                cout << "im here avg " << i << endl;
+                //cout << "im here avg " << i << endl;
                 Bytef *paeth_line = Filters::paeth_filter(B_channel, G_channel, R_channel,width, height, i);
-                cout << "im here paeth " << i << endl;
+                //cout << "im here paeth " << i << endl;
 
                 // get best line from heuristic
                 BestLine best_line = Heuristics::apply_heuristic(none_line, sub_line, up_line, avg_line, paeth_line, width);
-                cout << "im here bestline " << i << endl;
+                //cout << "im here bestline " << i << endl;
                 // make line applicable for deflate
-                cout << "Best line filter type = " << best_line.type << endl;
+                //cout << "Best line filter type = " << best_line.type << endl;
                 make_deflate_lines(lines_to_deflate, best_line, width, i);
-                cout << "im here make_deflate_lines " << i << endl;
+                //cout << "im here make_deflate_lines " << i << endl;
                 // test best line
                 // cout << "printing best line at index " << i << endl;
                 // for (int j = 0; j < width*3+1; j++) {
@@ -816,7 +939,7 @@ private:
             //     cout << setw(3) << static_cast<int>(lines_to_deflate[i]) << " ";
             // }
             // cout << endl;
-            results_text = make_compressions(bytes_per_pixel, width, height, lines_to_deflate, BMP_TYPE::BMP_TEXT,f);
+            results_text = make_compressions(bytes_per_pixel, width, height, lines_to_deflate, BMP_TYPE::BMP_TEXT,f, std::filesystem::file_size(f));
             for (CompressionResult * r : results_text) {
                 results_text_all_images.push_back(r);
             }
@@ -854,23 +977,23 @@ private:
             Bytef* lines_to_deflate = (Bytef *) malloc(height * (width * bytes_per_pixel + 1) * sizeof(Bytef));
             for (int i = 0; i < height; i++) {
                 Bytef *none_line = Filters::none_filter(&B_channel[i*width], &G_channel[i*width], &R_channel[i*width],width);
-                cout << "im here none " << i << endl;
+                //cout << "im here none " << i << endl;
                 Bytef *sub_line = Filters::sub_filter(&B_channel[i*width], &G_channel[i*width], &R_channel[i*width],width, height);
-                cout << "im here sub " << i << endl;
+                //cout << "im here sub " << i << endl;
                 Bytef *up_line = Filters::up_filter(B_channel, G_channel, R_channel,width, height, i);
-                cout << "im here up " << i << endl;
+                //cout << "im here up " << i << endl;
                 Bytef *avg_line = Filters::avg_filter(B_channel, G_channel, R_channel,width, height, i);
-                cout << "im here avg " << i << endl;
+                //cout << "im here avg " << i << endl;
                 Bytef *paeth_line = Filters::paeth_filter(B_channel, G_channel, R_channel,width, height, i);
-                cout << "im here paeth " << i << endl;
+                //cout << "im here paeth " << i << endl;
 
                 // get best line from heuristic
                 BestLine best_line = Heuristics::apply_heuristic(none_line, sub_line, up_line, avg_line, paeth_line, width);
-                cout << "im here bestline " << i << endl;
+                //cout << "im here bestline " << i << endl;
                 // make line applicable for deflate
-                cout << "Best line filter type = " << best_line.type << endl;
+                //cout << "Best line filter type = " << best_line.type << endl;
                 make_deflate_lines(lines_to_deflate, best_line, width, i);
-                cout << "im here make_deflate_lines " << i << endl;
+                //cout << "im here make_deflate_lines " << i << endl;
                 // test best line
                 // cout << "printing best line at index " << i << endl;
                 // for (int j = 0; j < width*3+1; j++) {
@@ -894,7 +1017,7 @@ private:
             //     cout << setw(3) << static_cast<int>(lines_to_deflate[i]) << " ";
             // }
             // cout << endl;
-            results_nature = make_compressions(bytes_per_pixel, width, height, lines_to_deflate, BMP_TYPE::BMP_NATURE,f);
+            results_nature = make_compressions(bytes_per_pixel, width, height, lines_to_deflate, BMP_TYPE::BMP_NATURE,f, std::filesystem::file_size(f));
             for (CompressionResult * r : results_nature) {
                 results_nature_all_images.push_back(r);
             }
@@ -913,8 +1036,24 @@ private:
         // IZVRTI SVE SLIKE SVAKE KATEGORIJE NA NAJBOLJEM PROSJECNOM PROSJEKU ZA COMPRESSION SPEED/RATIO
         make_compressions_for_best_avg_parameters();
     }
+    void clear_images(BMP_TYPE type) {
+        if (type == BMP_TYPE::BMP_TEXT) {
+            bmp_files_text.clear();
+            images1_vector.clear();
+            for (auto* child : images1_box.get_children()) {
+                images1_box.remove(*child);
+            }
+        }else if (type == BMP_TYPE::BMP_NATURE) {
+            bmp_files_nature.clear();
+            images2_vector.clear();
+            for (auto* child : images2_box.get_children()) {
+                images2_box.remove(*child);
+            }
+        }
+    }
 protected:
     void on_button1_clicked() {
+        clear_images(BMP_TYPE::BMP_TEXT);
         auto folder_dialog = Gtk::FileDialog::create();
         folder_dialog->set_title("Choose directory");
         folder_dialog->set_accept_label("Select");
@@ -923,6 +1062,7 @@ protected:
 
     }
     void on_button2_clicked() {
+        clear_images(BMP_TYPE::BMP_NATURE);
         auto folder_dialog = Gtk::FileDialog::create();
         folder_dialog->set_title("Choose directory");
         folder_dialog->set_accept_label("Select");
@@ -934,7 +1074,7 @@ protected:
         if (file_type == BMP_TEXT) {
             images1_box.set_orientation(Gtk::Orientation::VERTICAL);
             for (auto& file : bmp_files_text) {
-                cout << "Im here"<< endl;
+                //cout << "Im here"<< endl;
                 uintmax_t size = std::filesystem::file_size(file);
                 ImageWidget* img_widget = new ImageWidget(file, size);
                 images1_vector.push_back(img_widget);
@@ -975,7 +1115,7 @@ protected:
                 load_images_in_gui(file_type);
 
             }
-            std::cout << folder->get_path() << std::endl;
+            //std::cout << folder->get_path() << std::endl;
 
         }catch (Gtk::DialogError& de) {
             std::cout << de.what() << std::endl;

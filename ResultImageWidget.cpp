@@ -16,7 +16,7 @@ ResultImageWidget::ResultImageWidget(std::string fname, unsigned long long files
     // picture
     image_and_info_box.set_spacing(10);
         picture.set_file(Gio::File::create_for_path(fname));
-        picture.set_size_request(75, 75);
+        picture.set_size_request(150, 150);
         picture.set_hexpand(false);
         picture.get_style_context()->add_class("picture");
         apply_css();
