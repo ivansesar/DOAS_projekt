@@ -92,11 +92,11 @@ void flip_channel(Byte * channel, int width, int height) {
 
         }
 
-        int index = 0;
-        for (int i = 0; i < width*height*(bytes_per_pixel); i++) {
-            index++;
-            //uint8_t pixel_value = pixel_data_no_padding[i];
-        }
+        // int index = 0;
+        // for (int i = 0; i < width*height*(bytes_per_pixel); i++) {
+        //     index++;
+        //     //uint8_t pixel_value = pixel_data_no_padding[i];
+        // }
         //cout << "Number of px " << index << endl;
 
 
